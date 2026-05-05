@@ -213,7 +213,7 @@ build.gradle
     }
 
 
-## rasturants service
+## restaurant service
 
     server:
     port: 19300
