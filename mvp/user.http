@@ -14,7 +14,7 @@
 ###   STEP 7 → timeSlotId, slotStartTime
 ###   STEP 8 → reservationId
 
-@gatewayUrl    = http://localhost:19000
+@gatewayUrl    = {{gatewayUrl}}
 @userLoginId   = usermvp
 @userPassword  = Test123!@#
 @userName      = MVP 유저

@@ -528,7 +528,7 @@ bulid.gradle
 ## 파일 구성
 
 ```
-http-mvp/
+mvp/
 ├── owner.http              # 점주 셋업 시나리오 (식당·코스·타임슬롯 생성)
 ├── user.http               # 소비자 예약 시나리오 (대기 → 예약)
 ├── http-client.env.json    # 환경 변수 (seed 데이터용 고정 ID)
@@ -595,7 +595,7 @@ owner.http  →  user.http
 
 ```bash
 # 시드 데이터 삽입
-docker exec -i db psql -U admin -d michelet_db < http-mvp/sql/seed_mvp_data.sql
+docker exec -i db psql -U admin -d michelet_db < mvp/sql/seed_mvp_data.sql
 ```
 
 - `http-client.env.json`의 고정 ID가 자동으로 사용됨
@@ -662,10 +662,10 @@ docker exec -i db psql -U admin -d michelet_db < http-mvp/sql/seed_mvp_data.sql
 
 ```bash
 # 1. 초기화
-docker exec -i db psql -U admin -d michelet_db < http-mvp/sql/reset_mvp_data.sql
+docker exec -i db psql -U admin -d michelet_db < mvp/sql/reset_mvp_data.sql
 
 # 2. 시드 재삽입
-docker exec -i db psql -U admin -d michelet_db < http-mvp/sql/seed_mvp_data.sql
+docker exec -i db psql -U admin -d michelet_db < mvp/sql/seed_mvp_data.sql
 
 # 3. IntelliJ HTTP Client 전역 변수 초기화
 #    Tools > HTTP Client > Remove All Global Variables

@@ -8,7 +8,7 @@
 ###     restaurantId   — owner.http STEP 3 (또는 user.http STEP 3) 에서 저장
 ###     reservationId  — user.http  STEP 8 에서 저장
 
-@gatewayUrl = http://localhost:19000
+@gatewayUrl = {{gatewayUrl}}
 
 ### ──────────────────────────────────────────────────────────
 ### [STEP 1] 체크인 수행
