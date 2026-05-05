@@ -1,5 +1,319 @@
 # HTTP MVP 테스트 가이드
 
+# 현재 코드기준 다른값
+
+## rasturants service
+
+    server:
+    port: 19300
+    
+    spring:
+    config:
+    activate:
+    on-profile: local
+    
+    application:
+    name: restaurant-service
+    
+    datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/michelet_db}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    
+    jpa:
+    hibernate:
+    ddl-auto: update
+    properties:
+    hibernate:
+    default_schema: restaurant_service
+    format_sql: true
+    open-in-view: false
+    show-sql: true
+    
+    eureka:
+    client:
+    # local에서는 DB/API 테스트만 할 수 있도록 Eureka client를 기본 비활성화
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    service-url:
+    defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
+
+
+build.gradle 의존성
+
+    plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.14'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.asciidoctor.jvm.convert' version '4.0.2'
+    }
+    
+    group = 'com.michelet'
+    version = '0.0.1-SNAPSHOT'
+    
+    java {
+    toolchain {
+    languageVersion = JavaLanguageVersion.of(17)
+    }
+    }
+    
+    configurations {
+    compileOnly {
+    extendsFrom annotationProcessor
+    }
+    }
+    
+    repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    }
+    
+    ext {
+    set('springCloudVersion', "2025.0.1")
+    }
+    
+    dependencies {
+    //	DB 연결 후 사용
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    //	eureka server 등록할 때 사용 권장
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    implementation 'com.github.Miche-Let:common:dev-SNAPSHOT'
+    implementation 'io.github.openfeign:feign-hc5'
+    implementation 'com.github.Miche-Let:common-auth-feign:0.1.2'
+    implementation 'com.github.Miche-Let:common-auth-webmvc:0.1.5'
+    
+        runtimeOnly 'org.postgresql:postgresql'
+    
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+        annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+        annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+    
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        testRuntimeOnly 'com.h2database:h2'
+    }
+    
+    dependencyManagement {
+    imports {
+    mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+    }
+    
+    def snippetsDir = file("build/generated-snippets")
+    
+    tasks.named('test') {
+    useJUnitPlatform()
+    outputs.dir snippetsDir
+    }
+    
+    tasks.named('asciidoctor') {
+    inputs.dir snippetsDir
+    dependsOn tasks.named('test')
+    baseDirFollowsSourceFile()
+    attributes(
+    'snippets': snippetsDir
+    )
+    }
+
+## timeslot service
+
+TimeSlotInternalServiceImpl.java
+
+    package com.michelet.timeslotservice.presentation.controller;
+    
+    import java.util.UUID;
+    
+    import org.springframework.web.bind.annotation.PathVariable;
+    import org.springframework.web.bind.annotation.PostMapping;
+    import org.springframework.web.bind.annotation.RequestBody;
+    import org.springframework.web.bind.annotation.RequestMapping;
+    import org.springframework.web.bind.annotation.RestController;
+    
+    import com.michelet.common.response.ApiResponse;
+    import com.michelet.timeslotservice.application.service.TimeSlotService;
+    import com.michelet.timeslotservice.presentation.code.TimeSlotSuccessCode;
+    import com.michelet.timeslotservice.presentation.dto.request.TimeSlotDeductCapacityRequest;
+    
+    import jakarta.validation.Valid;
+    import lombok.RequiredArgsConstructor;
+    
+    @RestController
+    @RequestMapping("/internal/v1/timeslots")
+    @RequiredArgsConstructor
+    public class TimeSlotInternalController {
+
+    private final TimeSlotService timeSlotService;
+    
+    /**
+     * 특정 타임슬롯의 예약 가능 인원을 차감하는 내부 API 엔드포인트.
+     * 트랜잭션 및 낙관적 락을 통해 데이터 일관성을 보장합니다.
+     * * @param timeSlotId 차감 대상 타임슬롯 식별자
+     * @param request 차감 요청 정보 (인원 수)
+     * @return 공통 응답 규격
+     */
+
+    
+    @PostMapping("/{timeSlotId}/deduct")
+    public ApiResponse<Void> deductCapacity(
+            @PathVariable UUID timeSlotId, 
+            @Valid @RequestBody TimeSlotDeductCapacityRequest request) {
+
+        timeSlotService.deductCapacity(timeSlotId, request.requiredCapacity());
+        return ApiResponse.ok(TimeSlotSuccessCode.DEDUCT_SUCCESS, null);
+        
+    }
+
+    }   
+
+application.yml
+
+    server:
+    port: 19400
+    
+    spring:
+    application:
+    name: timeslot-service
+    
+    datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:michelet_db}
+    username: ${POSTGRES_USER:admin}
+    password: ${POSTGRES_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    
+    jpa:
+    hibernate:
+    ddl-auto: update
+    show-sql: true
+    properties:
+    hibernate:
+    default_schema: timeslot_service
+    format_sql: true
+    highlight_sql: true
+    
+    internal:
+    auth:
+    secret: ${SPRING_INTERNAL_AUTH_SECRET}
+    
+    eureka:
+    client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+    defaultZone: http://localhost:${EUREKA_PORT:8761}/eureka/
+
+## user service
+
+application-local.yml
+
+        eureka:
+        client:
+        service-url:
+        defaultZone: http://localhost:${EUREKA_PORT:8761}/eureka/
+        
+        spring:
+        datasource:
+        url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:michelet_db}
+        username: ${POSTGRES_USER:admin}
+        password: ${POSTGRES_PASSWORD:admin}
+        driver-class-name: org.postgresql.Driver
+        data:
+        redis:
+        host: localhost
+        port: ${REDIS_PORT:6379}
+        
+        jpa:
+        hibernate:
+        ddl-auto: create
+        properties:
+        hibernate:
+        default_schema: user_service
+        format_sql: true
+        show-sql: true
+    
+## waiting-service
+
+bulid.gradle
+
+    plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.14'
+    id 'io.spring.dependency-management' version '1.1.7'
+    }
+    
+    group = 'com.michelet'
+    version = '0.0.1-SNAPSHOT'
+    
+    java {
+    toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+    }
+    }
+    
+    repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    }
+    
+    ext {
+    set('springCloudVersion', "2025.0.2")
+    }
+    
+    dependencies {
+    // Common
+    implementation 'com.github.Miche-Let:common-auth-feign:0.1.1'
+    implementation 'com.github.Miche-Let:common-auth-webmvc:0.1.3'
+    implementation 'com.github.Miche-Let:common:aaf3b1d'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
+        // Lombok
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+    
+        // Eureka
+        implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    
+        // QueryDSL
+        implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
+        annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'
+        annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+        annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+    
+        // PostgreSQL
+        runtimeOnly 'org.postgresql:postgresql'
+    
+        // Flyway
+        implementation 'org.flywaydb:flyway-core'
+        implementation 'org.flywaydb:flyway-database-postgresql'
+    
+        // Test
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        testImplementation 'com.h2database:h2'
+    }
+    
+    dependencyManagement {
+    imports {
+    mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+    }
+    
+    tasks.named('test') {
+    useJUnitPlatform()
+    }
+
+
+
 ## 파일 구성
 
 ```
