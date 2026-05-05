@@ -8,7 +8,7 @@
 ###   courseId          — 등록된 코스 ID
 ###   courseUnitPrice   — 코스 단가
 
-@gatewayUrl    = {{gatewayUrl}}
+@gatewayUrl    = {{gateway}}
 @ownerLoginId  = ownermvp
 @ownerPassword = Test123!@#
 @ownerName     = MVP 점주

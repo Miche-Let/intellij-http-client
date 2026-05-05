@@ -14,7 +14,7 @@
 ###   STEP 7 → timeSlotId, slotStartTime
 ###   STEP 8 → reservationId
 
-@gatewayUrl    = {{gatewayUrl}}
+@gatewayUrl    = {{gateway}}
 @userLoginId   = usermvp
 @userPassword  = Test123!@#
 @userName      = MVP 유저
@@ -25,6 +25,7 @@
 ### [STEP 1] 소비자 회원가입
 ### ※ 이미 가입된 경우 409 응답 → STEP 2로 바로 진행
 ### ──────────────────────────────────────────────────────────
+
 POST {{gatewayUrl}}/api/v1/users/signup
 Content-Type: application/json
 
