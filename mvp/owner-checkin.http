@@ -1,0 +1,61 @@
+### Scenario: 점주 (OWNER) 체크인 시나리오
+### 순서: 체크인 → 예약 상태 검증 (COMPLETED)
+###
+### 사전 조건:
+###   - user.http를 완료하여 다음 전역 변수가 설정된 상태
+###     ownerToken     — owner.http STEP 2 에서 저장
+###     userToken      — user.http  STEP 2 에서 저장
+###     restaurantId   — owner.http STEP 3 (또는 user.http STEP 3) 에서 저장
+###     reservationId  — user.http  STEP 8 에서 저장
+
+@gatewayUrl = {{gateway}}
+
+### ──────────────────────────────────────────────────────────
+### [STEP 1] 체크인 수행
+### 점주가 예약 손님의 방문을 체크인 처리
+### 성공 시 checkInStatus: CHECKED_IN 반환
+### ──────────────────────────────────────────────────────────
+PATCH {{gatewayUrl}}/api/v1/restaurants/{{restaurantId}}/reservations/{{reservationId}}/check-in
+Authorization: Bearer {{ownerToken}}
+
+> {%
+  client.test("체크인 성공", function() {
+    client.assert(response.status === 200,
+      "Expected 200 OK but got " + response.status);
+    if (response.body && response.body.data) {
+      client.assert(response.body.data.checkInStatus === "CHECKED_IN",
+        "Expected CHECKED_IN but got " + response.body.data.checkInStatus);
+      client.assert(response.body.data.reservationId === client.global.get("reservationId"),
+        "reservationId mismatch");
+    }
+  });
+  if (response.body && response.body.data) {
+    client.log("체크인 상태: " + response.body.data.checkInStatus);
+    client.log("체크인 시각: " + response.body.data.checkedInAt);
+  }
+%}
+
+###
+
+### ──────────────────────────────────────────────────────────
+### [STEP 2] 예약 상태 검증 — COMPLETED 확인
+### 체크인 완료 시 reservation-service가 CONFIRMED → COMPLETED 로 전환
+### userToken(소비자 관점)으로 조회하여 최종 상태 검증
+### ──────────────────────────────────────────────────────────
+GET {{gatewayUrl}}/api/v1/reservations/{{reservationId}}
+Authorization: Bearer {{userToken}}
+
+> {%
+  client.test("예약 상태 COMPLETED 전환 확인", function() {
+    client.assert(response.status === 200,
+      "Expected 200 OK but got " + response.status);
+    if (response.body && response.body.data) {
+      client.assert(response.body.data.status === "COMPLETED",
+        "Expected COMPLETED but got " + response.body.data.status);
+    }
+  });
+  if (response.body && response.body.data) {
+    client.log("예약 ID: " + response.body.data.reservationId);
+    client.log("예약 상태: " + response.body.data.status + " (CONFIRMED → COMPLETED 전환 완료)");
+  }
+%}

@@ -1,0 +1,164 @@
+### Scenario: 점주 (OWNER) 셋업 시나리오
+### 순서: 회원가입 → 로그인 → 식당 등록 → 코스 등록 → 타임슬롯 일괄 생성
+### 각 STEP을 위에서 아래로 순서대로 실행하세요.
+###
+### 실행 후 전달되는 전역 변수 (user.http에서 사용):
+###   ownerToken        — 점주 Bearer 토큰
+###   restaurantId      — 등록된 식당 ID
+###   courseId          — 등록된 코스 ID
+###   courseUnitPrice   — 코스 단가
+
+@gatewayUrl    = {{gateway}}
+@ownerLoginId  = ownermvp
+@ownerPassword = Test123!@#
+@ownerName     = MVP 점주
+@ownerEmail    = ownermvp@example.com
+@ownerPhone    = 010-9900-0001
+
+### ──────────────────────────────────────────────────────────
+### [STEP 1] 점주 회원가입
+### ※ 이미 가입된 경우 409 응답 → STEP 2로 바로 진행
+### ──────────────────────────────────────────────────────────
+POST {{gatewayUrl}}/api/v1/users/signup
+Content-Type: application/json
+
+{
+  "loginId": "{{ownerLoginId}}",
+  "password": "{{ownerPassword}}",
+  "name": "{{ownerName}}",
+  "email": "{{ownerEmail}}",
+  "phone": "{{ownerPhone}}",
+  "userRole": "OWNER"
+}
+
+> {%
+  client.test("점주 회원가입 성공 (또는 이미 존재)", function() {
+    client.assert(response.status === 201 || response.status === 409,
+      "Expected 201 or 409 but got " + response.status);
+  });
+%}
+
+###
+
+### ──────────────────────────────────────────────────────────
+### [STEP 2] 점주 로그인 → ownerToken 저장
+### ──────────────────────────────────────────────────────────
+POST {{gatewayUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "loginId": "{{ownerLoginId}}",
+  "password": "{{ownerPassword}}"
+}
+
+> {%
+  client.test("점주 로그인 성공", function() {
+    client.assert(response.status === 200, "Expected 200 OK but got " + response.status);
+    if (response.body && response.body.data) {
+      client.assert(response.body.data.accessToken !== undefined, "accessToken 반환 확인");
+    }
+  });
+  if (response.body && response.body.data && response.body.data.accessToken) {
+    client.global.set("ownerToken", response.body.data.accessToken);
+    client.log("ownerToken 저장 완료");
+  }
+%}
+
+###
+
+### ──────────────────────────────────────────────────────────
+### [STEP 3] 식당 등록 → restaurantId 저장
+### ──────────────────────────────────────────────────────────
+POST {{gatewayUrl}}/api/v1/restaurants
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+  "name": "MicheLet Dining",
+  "address": "서울특별시 강남구 테헤란로 123",
+  "phone": "02-1234-5678",
+  "description": "파인다이닝 레스토랑입니다.",
+  "reservationOpenAt": "10:00:00",
+  "avgMealDurationMin": 90,
+  "status": "OPEN",
+  "businessHours": "화-일 18:00-22:00 (월요일 정기 휴무)"
+}
+
+> {%
+  client.test("식당 등록 성공", function() {
+    client.assert(response.status === 200, "Expected 200 OK but got " + response.status);
+    if (response.body && response.body.data) {
+      client.assert(response.body.data.restaurantId !== undefined, "restaurantId 반환 확인");
+    }
+  });
+  if (response.body && response.body.data && response.body.data.restaurantId) {
+    client.global.set("restaurantId", response.body.data.restaurantId);
+    client.log("restaurantId 저장: " + response.body.data.restaurantId);
+  }
+%}
+
+###
+
+### ──────────────────────────────────────────────────────────
+### [STEP 4] 코스 등록 → courseId, courseUnitPrice 저장
+### ──────────────────────────────────────────────────────────
+POST {{gatewayUrl}}/api/v1/restaurants/{{restaurantId}}/courses
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+  "name": "디너 코스",
+  "price": 150000,
+  "sessionType": "DINNER",
+  "status": "AVAILABLE",
+  "menus": [
+    { "coursePart": "AMUSE_BOUCHE", "menuName": "한우 타르타르", "sortOrder": 1 },
+    { "coursePart": "APPETIZER",    "menuName": "제철 샐러드",   "sortOrder": 2 },
+    { "coursePart": "FISH",         "menuName": "제철 생선 구이","sortOrder": 3 },
+    { "coursePart": "MAIN",         "menuName": "양갈비",        "sortOrder": 4 },
+    { "coursePart": "DESSERT",      "menuName": "바닐라 무스",   "sortOrder": 5 }
+  ]
+}
+
+> {%
+  client.test("코스 등록 성공", function() {
+    client.assert(response.status === 200, "Expected 200 OK but got " + response.status);
+    if (response.body && response.body.data) {
+      client.assert(response.body.data.courseId !== undefined, "courseId 반환 확인");
+    }
+  });
+  if (response.body && response.body.data && response.body.data.courseId) {
+    client.global.set("courseId", response.body.data.courseId);
+    client.global.set("courseUnitPrice", 150000);
+    client.log("courseId 저장: " + response.body.data.courseId);
+  }
+%}
+
+###
+
+### ──────────────────────────────────────────────────────────
+### [STEP 5] 타임슬롯 일괄 생성
+### 2026년 7월 한 달치 / 18:00~21:00 / 1시간 간격 / 수용 10명
+### ──────────────────────────────────────────────────────────
+POST {{gatewayUrl}}/api/v1/restaurants/{{restaurantId}}/time-slots/bulk
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+  "startDate": "2026-07-01",
+  "endDate": "2026-07-31",
+  "openTime": "18:00:00",
+  "closeTime": "21:00:00",
+  "intervalMinutes": 60,
+  "capacity": 10
+}
+
+> {%
+  client.test("타임슬롯 일괄 생성 성공", function() {
+    client.assert(response.status === 200, "Expected 200 OK but got " + response.status);
+  });
+  client.log("2026년 7월 타임슬롯 생성 완료 (18:00 / 19:00 / 20:00 × 31일)");
+  client.log("restaurantId: " + client.global.get("restaurantId"));
+  client.log("courseId: " + client.global.get("courseId"));
+  client.log("이제 user.http를 실행할 수 있습니다.");
+%}
