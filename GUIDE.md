@@ -2,6 +2,217 @@
 
 # 현재 코드기준 다른값
 
+## reservation service
+
+src/main/java/com/michelet/reservation/infrastructure/client/TimeSlotClient.java
+
+    package com.michelet.reservation.infrastructure.client;
+    
+    import com.michelet.common.response.ApiResponse;
+    import com.michelet.reservation.infrastructure.client.dto.TimeSlotDeductCapacityRequest;
+    import java.util.UUID;
+    import org.springframework.cloud.openfeign.FeignClient;
+    import org.springframework.web.bind.annotation.PathVariable;
+    import org.springframework.web.bind.annotation.PostMapping;
+    import org.springframework.web.bind.annotation.RequestBody;
+    
+    @FeignClient(
+    name = "timeslot-service"
+    )
+    public interface TimeSlotClient {
+    
+        /**
+         * 예약 확정 시 남은 수용 인원 차감. 호출 시점: create() 저장 완료 후, modify() 날짜 변경 시 신규 날짜
+         */
+        @PostMapping("/internal/v1/timeslots/{timeSlotId}/deduct")
+        ApiResponse<Void> decrementStock(
+                @PathVariable("timeSlotId") UUID timeSlotId,
+                @RequestBody TimeSlotDeductCapacityRequest request
+        );
+    
+        // 현재 버전에서 미사용 (담당자 확인)
+        // /**
+        //  * 예약 취소 / 날짜 변경 시 기존 날짜 슬롯 수용 인원 복구 (+1). 호출 시점: cancel() 완료 후, modify() 날짜 변경 시 원래 날짜
+        //  */
+        // @PatchMapping("/internal/v1/time-slots/{timeSlotId}/restore")
+        // ApiResponse<Void> incrementStock(
+        //         @PathVariable("timeSlotId") UUID timeSlotId,
+        //         @RequestParam("date") LocalDate date
+        // );
+    }
+
+src/main/java/com/michelet/reservation/infrastructure/client/WaitingClient.java
+
+    package com.michelet.reservation.infrastructure.client;
+    
+    import com.michelet.common.response.ApiResponse;
+    import com.michelet.reservation.infrastructure.client.dto.WaitingTokenVerifyResponse;
+    import java.util.UUID;
+    import org.springframework.cloud.openfeign.FeignClient;
+    import org.springframework.web.bind.annotation.DeleteMapping;
+    import org.springframework.web.bind.annotation.GetMapping;
+    import org.springframework.web.bind.annotation.PathVariable;
+    import org.springframework.web.bind.annotation.RequestParam;
+    
+    @FeignClient(name = "waiting-service")
+    public interface WaitingClient {
+    
+        @GetMapping("/internal/waitings/verify-token")
+        ApiResponse<WaitingTokenVerifyResponse> verifyToken(
+                @RequestParam("token") String token
+        );
+    
+        @DeleteMapping("/internal/waitings/{waitingId}/complete")
+        ApiResponse<Void> completeWaiting(
+                @PathVariable("waitingId") UUID waitingId
+        );
+    }
+
+
+src/main/resources/application-local.yaml
+
+    spring:
+    kafka:
+    bootstrap-servers: localhost:9092
+    jpa:
+    hibernate:
+    ddl-auto: create
+    
+    internal:
+    secret: ${INTERNAL_AUTH_SECRET}
+    auth:
+    secret: ${INTERNAL_AUTH_SECRET}
+    
+    waiting:
+    stub: false
+    
+    timeslot:
+    stub: false
+    
+    kafka:
+    stub: true
+
+
+src/main/resources/application.yaml
+
+    spring:
+    application:
+    name: reservation-service
+    
+    datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:michelet_db}
+    username: ${DB_USER:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    
+    jpa:
+    hibernate:
+    ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+    properties:
+    hibernate:
+    dialect: org.hibernate.dialect.PostgreSQLDialect
+    default_schema: reservation_service
+    format_sql: true
+    jdbc.time_zone: Asia/Seoul
+    order_inserts: true
+    order_updates: true
+    jdbc:
+    batch_size: 30
+    show-sql: false
+    open-in-view: false
+    
+    data:
+    redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    
+    kafka:
+    bootstrap-servers: ${KAFKA_HOST}:${KAFKA_PORT}
+    producer:
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    properties:
+    spring.json.add.type.headers: false
+    
+    cloud:
+    discovery:
+    enabled: true
+    
+    eureka:
+    client:
+    service-url:
+    defaultZone: http://${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/
+    
+    internal:
+    auth:
+    secret: ${INTERNAL_AUTH_SECRET}
+    
+    feign:
+    timeslot-service:
+    url: ${FEIGN_TIMESLOT_SERVICE_URL:http://localhost:19400}
+    waiting-service:
+    url: ${FEIGN_WAITING_SERVICE_URL:http://localhost:19300}
+    
+    server:
+    port: 19500
+
+build.gradle
+
+    plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.14'
+    id 'io.spring.dependency-management' version '1.1.7'
+    }
+    
+    group = 'com.michelet'
+    version = '0.0.1-SNAPSHOT'
+    
+    java {
+    toolchain {
+    languageVersion = JavaLanguageVersion.of(17)
+    }
+    }
+    
+    repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    
+    }
+    ext {
+    set('springCloudVersion', "2025.0.2")
+    }
+    
+    dependencies {
+    implementation 'com.github.Miche-Let:common:dev-SNAPSHOT'
+    implementation 'com.github.Miche-Let:common-auth-webmvc:0.1.5'
+    implementation 'com.github.Miche-Let:common-auth-feign:0.1.2'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    compileOnly 'org.projectlombok:lombok'
+    runtimeOnly 'org.postgresql:postgresql'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.kafka:spring-kafka'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    }
+    
+    dependencyManagement {
+    imports {
+    mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+    }
+    
+    tasks.named('test') {
+    useJUnitPlatform()
+    }
+
+
 ## rasturants service
 
     server:
